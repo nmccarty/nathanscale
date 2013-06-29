@@ -1,2 +1,2 @@
-cmdhistory=[";; Switching to NathanScale.core namespace" "(sinc 0)" "(sinc 0.01)"]
+cmdhistory=[";; Switching to NathanScale.core namespace" "(sinc 0)" "(sinc 0.01)" ";; Switching to NathanScale.core namespace" "(try\\n  (/ 1 1)\\n  (catch Exception e (.getMessage e)))" "(read-image-from-file-at \\"C\:/Users/natman3400/cirno.png\\")"]
 eclipse.preferences.version=1
