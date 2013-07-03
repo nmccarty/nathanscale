@@ -2,7 +2,7 @@
 
 (def PI 3.1415926535897)
 
-(def STANDARD-A 2.0)
+(def STANDARD-A 3.0)
 
 (defn peek!
   "A peek that works on transients, because for some reason clojure doesn't give me this"
