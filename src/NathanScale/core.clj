@@ -2,7 +2,7 @@
 
 (def PI 3.141592653589793)
 
-(def STANDARD-A 2)
+(def STANDARD-A 2.0)
 
 
 
@@ -13,12 +13,12 @@
 
 
 (defn big-l
-  ([x]
+  ([^double x]
     (big-l x STANDARD-A))
   ;; Lanczos reconstrucion kernel
-  ([x a]
+  ([^double x ^double a]
     (if (< (* -1 a) x a)
-      (if (= x 0) 
+      (if (= x (double 0)) 
         1
         (/ (* a (Math/sin (* PI x)) (Math/sin (/ (* PI x) a))) (* PI PI) (* x x)))
       0)))
@@ -197,8 +197,8 @@
                       (resize-width-to
                         (image-to-vectors
                           (read-image "C:/Users/natman3400/cirno.png"))
-                        600)
-                      600))
+                        200)
+                      200))
                   "C:/Users/natman3400/test.png"
                   "png"))
 
