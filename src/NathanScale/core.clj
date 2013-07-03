@@ -4,18 +4,15 @@
 
 (def STANDARD-A 2.0)
 
-
-
 (defn peek!
   "A peek that works on transients, because for some reason clojure doesn't give me this"
   [seq]
   (nth seq (dec (count seq))))
 
-
 (defn big-l
+  "Lanczos reconstrucion kernel"
   ([^double x]
     (big-l x STANDARD-A))
-  ;; Lanczos reconstrucion kernel
   ([^double x ^double a]
     (if (< (* -1 a) x a)
       (if (= x (double 0)) 
@@ -44,11 +41,10 @@
   [vec ^long newsize]
   (let [size              (int (count vec))
         ratio              (/ newsize size)
-        interp (interpolation-function vec)
+        interp (interpolation-function vec) ;; Build the function used for interpolation
         newvec (transient [])]
     (doseq [i (range 0 newsize)]
       (let [oldloc (double (/ i ratio))]
-       ;; (conj! newvec (fancy-clamp (interp oldloc)))))
         (conj! newvec (interp oldloc))))
     (persistent! newvec)))
 
@@ -58,12 +54,14 @@
   (max lower (min n upper)))
 
 (defn fancy-clamp
+  "A version of clamp with the bounds predefined and protecting against NaN"
   [^double num]
   (if (java.lang.Double/isNaN num)
-    255
+    255.0
     (clamp 0 255 num)))
 
 (defn floats-to-pixel
+  "Given three float values, return the integer repusentation of their pixel"
   [^double red-f ^double green-f ^double blue-f]
   (let [red   (int (fancy-clamp red-f))
         green (int (fancy-clamp green-f))
@@ -88,22 +86,27 @@
         green-vec   (transient [])
         blue-vec    (transient [])]
     (doseq [y (range 0 height)]
-      ;; Change to vector-of short?
+      ;; Make places to put the rows
       (let [red-row   (transient [])
             green-row (transient [])
             blue-row  (transient [])]
+        ;; Go across the row
         (doseq [x (range 0 width)]
-          (let [pixel (.getRGB img x y)
-                red   (bit-and pixel 0xFF)
-                green (bit-and (bit-shift-right pixel 8) 0xFF)
-                blue  (bit-and (bit-shift-right pixel 16) 0xFF)]
-            (conj! red-row red)
+          (let [pixel (.getRGB img x y) ;; Get the pixel
+                red   (bit-and pixel 0xFF) ;; Extract red channel
+                green (bit-and (bit-shift-right pixel 8) 0xFF) ;; Extract green channel
+                blue  (bit-and (bit-shift-right pixel 16) 0xFF)] ;; Extract blue channel
+            ;; Put things in their places 
+            (conj! red-row red) 
             (conj! green-row green)
             (conj! blue-row blue)))
+        ;; Now that we are done making these rows, we can go ahead and make them persistant 
+        ;; and add them to the vectors for their respecrtive fields 
         (conj! red-vec (persistent! red-row))
         (conj! green-vec (persistent! green-row))
         (conj! blue-vec (persistent! blue-row))))
-    (hash-map :red (vec (map #(into (vector-of :double) %) (persistent! red-vec)))
+    ;; Return a hash-map containing the fields and some other stuff
+    (hash-map :red (vec (map #(into (vector-of :double) %) (persistent! red-vec))) ;; Put everything into vectors of doubles to avoid boxing
               :green (vec (map #(into (vector-of :double) %) (persistent! green-vec)))
               :blue (vec (map #(into (vector-of :double) %) (persistent! blue-vec)))
               :height height
@@ -123,6 +126,8 @@
               :width new-width)))
 
 (defn- resize-height-helper
+  "This Function exists to make multithreading resize-hight-to eaiser.
+   Simply resizes a given field to the given new-height."
   [old ^long new-height ^long width]
   (let [new (transient [])]
     (doseq [y (range 0 new-height)]
