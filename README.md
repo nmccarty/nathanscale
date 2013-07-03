@@ -1,13 +1,12 @@
 # NathanScale
 
-A Clojure library designed to ... well, that part is up to you.
+Sinc based interpolation of images in clojure.
 
 ## Usage
 
-FIXME
+None currently avaible
 
 ## License
 
-Copyright © 2013 FIXME
-
-Distributed under the Eclipse Public License, the same as Clojure.
+Copyright © 2013 Nathan McCarty 
+Distrubuted under the WTFPL.
