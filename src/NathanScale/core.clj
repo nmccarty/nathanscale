@@ -1,6 +1,6 @@
 (ns NathanScale.core)
 
-(def PI 3.141592653589793)
+(def PI 3.1415926535897)
 
 (def STANDARD-A 2.0)
 
@@ -33,9 +33,9 @@
   "Constructs an interpolation function for a given vector"
   ([vec]
     (interpolation-function vec STANDARD-A))
-  ([vec a]
+  ([vec ^double a]
     (let [len (count vec)]
-      (fn [x]
+      (fn [^double x]
         (let [top    (int (min len (inc (+ a (Math/floor x)))))
               bottom   (int (max 0 (- (+ (Math/floor x) 1) a)))
               r                              (range bottom top)]
@@ -46,12 +46,12 @@
 (defn resize-to
   "Make a new vector that is vec resized to newsize"
   [vec newsize]
-  (let [size                    (count vec)
+  (let [size              (int (count vec))
         ratio              (/ newsize size)
         interp (interpolation-function vec)
         newvec (transient [])]
     (doseq [i (range 0 newsize)]
-      (let [oldloc (/ i ratio)]
+      (let [oldloc (double (/ i ratio))]
        ;; (conj! newvec (fancy-clamp (interp oldloc)))))
         (conj! newvec (interp oldloc))))
     (persistent! newvec)))
