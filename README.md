@@ -1,12 +1,13 @@
 # NathanScale
 
-Sinc based interpolation of images in clojure.
+Interpolation of images in clojure.
 
 ## Usage
 
-None currently avaible
+None currently available
 
 ## License
 
-Copyright © 2013 Nathan McCarty 
-Distrubuted under the WTFPL.
+Copyright © 2013 Nathan McCarty.
+
+Distributed under the WTFPL.
