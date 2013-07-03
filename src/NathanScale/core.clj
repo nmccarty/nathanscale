@@ -4,10 +4,13 @@
 
 (def STANDARD-A 2)
 
+
+
 (defn peek!
   "A peek that works on transients, because for some reason clojure doesn't give me this"
   [seq]
   (nth seq (dec (count seq))))
+
 
 (defn big-l
   ([x]
@@ -49,6 +52,7 @@
         newvec (transient [])]
     (doseq [i (range 0 newsize)]
       (let [oldloc (/ i ratio)]
+       ;; (conj! newvec (fancy-clamp (interp oldloc)))))
         (conj! newvec (interp oldloc))))
     (persistent! newvec)))
 
@@ -57,6 +61,20 @@
   ^double [^double lower ^double upper ^double n]
   (max lower (min n upper)))
 
+(defn fancy-clamp
+  [num]
+  (if (java.lang.Double/isNaN num)
+    255
+    (clamp 0 255 num)))
+
+(defn floats-to-pixel
+  [red-f green-f blue-f]
+  (let [red   (int (fancy-clamp red-f))
+        green (int (fancy-clamp green-f))
+        blue  (int (fancy-clamp blue-f))]
+    (bit-or red
+            (bit-or (bit-shift-left green 8)
+                    (bit-shift-left blue 16)))))
 
 (defn read-image
   "Given a string with the location of a file, try to load it as an image"
@@ -108,6 +126,49 @@
               :height height
               :width new-width)))
 
+(defn resize-height-to
+  "Given a map of channel vectors, create a new map that is the resized image with the given height"
+  [img-vecs new-height]
+  ;; Doing one channel at a time, this is so I can add concurrency later
+  (let [width         (:width img-vecs)
+        old-red       (:red img-vecs)
+        new-red-vec   (let [new-red (transient [])]
+                                (doseq [y (range 0 new-height)]
+                                  (conj! new-red (transient [])))
+                                (doseq [x (range 0 width)]
+                                  (let [old-col (map #(nth % x) old-red)
+                                        new-col (resize-to old-col new-height)]
+                                    (doseq [y (range 0 new-height)]
+                                      (conj! (nth new-red y) (nth new-col y)))))
+                        (map persistent! (persistent! new-red)))
+        old-green     (:green img-vecs)
+        new-green-vec (let [new-green (transient [])]
+                                 (doseq [y (range 0 new-height)]
+                                   (conj! new-green (transient [])))
+                                 (doseq [x (range 0 width)]
+                                   (let [old-col (map #(nth % x) old-green)
+                                         new-col (resize-to old-col new-height)]
+                                     (doseq [y (range 0 new-height)]
+                                       (conj! (nth new-green y) (nth new-col y)))))
+                         (map persistent! (persistent! new-green)))
+        old-blue      (:blue img-vecs)
+        new-blue-vec  (let [new-blue (transient [])]
+                                (doseq [y (range 0 new-height)]
+                                  (conj! new-blue (transient [])))
+                                (doseq [x (range 0 width)]
+                                  (let [old-col (map #(nth % x) old-blue)
+                                        new-col (resize-to old-col new-height)]
+                                    (doseq [y (range 0 new-height)]
+                                      (conj! (nth new-blue y) (nth new-col y)))))
+                        (map persistent! (persistent! new-blue)))]
+    
+    ;; Return that ulgy sonofabitch 
+    (hash-map :red new-red-vec
+              :green new-green-vec
+              :blue new-blue-vec
+              :height new-height
+              :width width)))
+
 (defn img-vectors-to-img
   [img-vecs]
   (let [width     (:width img-vecs)
@@ -125,24 +186,21 @@
         (.setRGB img x y pixel)))
     img))
 
-(defn fancy-clamp
-  [num]
-  (if (java.lang.Double/isNaN num)
-    255
-    (clamp 0 255 num)))
-
-(defn floats-to-pixel
-  [red-f green-f blue-f]
-  (let [red   (int (fancy-clamp red-f))
-        green (int (fancy-clamp green-f))
-        blue  (int (fancy-clamp blue-f))]
-    (bit-or red
-            (bit-or (bit-shift-left green 8)
-                    (bit-shift-left blue 16)))))
-
 (defn write-image-to
   [img loc format]
   (javax.imageio.ImageIO/write img format (java.io.File. loc)))
+
+(defn test-me
+  []
+  (write-image-to (img-vectors-to-img
+                    (resize-height-to 
+                      (resize-width-to
+                        (image-to-vectors
+                          (read-image "C:/Users/natman3400/cirno.png"))
+                        600)
+                      600))
+                  "C:/Users/natman3400/test.png"
+                  "png"))
 
   
 
