@@ -23,12 +23,6 @@
         (/ (* a (Math/sin (* PI x)) (Math/sin (/ (* PI x) a))) (* PI PI) (* x x)))
       0)))
 
-(defn print-return
-  [val]
-  (do
-    (println val)
-    val))
-
 (defn interpolation-function
   "Constructs an interpolation function for a given vector"
   ([vec]
@@ -45,7 +39,7 @@
 
 (defn resize-to
   "Make a new vector that is vec resized to newsize"
-  [vec newsize]
+  [vec ^long newsize]
   (let [size              (int (count vec))
         ratio              (/ newsize size)
         interp (interpolation-function vec)
@@ -62,13 +56,13 @@
   (max lower (min n upper)))
 
 (defn fancy-clamp
-  [num]
+  [^double num]
   (if (java.lang.Double/isNaN num)
     255
     (clamp 0 255 num)))
 
 (defn floats-to-pixel
-  [red-f green-f blue-f]
+  [^double red-f ^double green-f ^double blue-f]
   (let [red   (int (fancy-clamp red-f))
         green (int (fancy-clamp green-f))
         blue  (int (fancy-clamp blue-f))]
@@ -115,7 +109,7 @@
 
 (defn resize-width-to
   "Given a map of channel vectors, create a new map that is the resized image with the given width"
-  [img-vecs new-width]
+  [img-vecs ^long new-width]
   (let [old-red-vec (:red img-vecs)
         old-green-vec (:green img-vecs)
         old-blue-vec  (:blue img-vecs)
@@ -126,46 +120,45 @@
               :height height
               :width new-width)))
 
+(defn- resize-height-helper
+  [old new-height width]
+  (let [new (transient [])]
+    (doseq [y (range 0 new-height)]
+      (conj! new (transient [])))
+    (doseq [x (range 0 width)]
+      (let [old-col (map #(nth % x) old)
+            new-col (resize-to old-col new-height)]
+        (doseq [y (range 0 new-height)]
+          (conj! (nth new y) (nth new-col y)))))
+    (let [persist-new (persistent! new)]
+      (doall (map persistent! persist-new)))))
+
 (defn resize-height-to
   "Given a map of channel vectors, create a new map that is the resized image with the given height"
   [img-vecs new-height]
   ;; Doing one channel at a time, this is so I can add concurrency later
   (let [width         (:width img-vecs)
         old-red       (:red img-vecs)
-        new-red-vec   (let [new-red (transient [])]
-                                (doseq [y (range 0 new-height)]
-                                  (conj! new-red (transient [])))
-                                (doseq [x (range 0 width)]
-                                  (let [old-col (map #(nth % x) old-red)
-                                        new-col (resize-to old-col new-height)]
-                                    (doseq [y (range 0 new-height)]
-                                      (conj! (nth new-red y) (nth new-col y)))))
-                        (map persistent! (persistent! new-red)))
+        new-red-vec   (agent old-red)
         old-green     (:green img-vecs)
-        new-green-vec (let [new-green (transient [])]
-                                 (doseq [y (range 0 new-height)]
-                                   (conj! new-green (transient [])))
-                                 (doseq [x (range 0 width)]
-                                   (let [old-col (map #(nth % x) old-green)
-                                         new-col (resize-to old-col new-height)]
-                                     (doseq [y (range 0 new-height)]
-                                       (conj! (nth new-green y) (nth new-col y)))))
-                         (map persistent! (persistent! new-green)))
+        new-green-vec (agent old-green)
         old-blue      (:blue img-vecs)
-        new-blue-vec  (let [new-blue (transient [])]
-                                (doseq [y (range 0 new-height)]
-                                  (conj! new-blue (transient [])))
-                                (doseq [x (range 0 width)]
-                                  (let [old-col (map #(nth % x) old-blue)
-                                        new-col (resize-to old-col new-height)]
-                                    (doseq [y (range 0 new-height)]
-                                      (conj! (nth new-blue y) (nth new-col y)))))
-                        (map persistent! (persistent! new-blue)))]
+        new-blue-vec  (agent old-blue)]
+    
+    ;; Send the agents off to do their thing and resize dat image
+    (send new-red-vec #(resize-height-helper % new-height width))
+    (send new-green-vec #(resize-height-helper % new-height width))
+    (send new-blue-vec #(resize-height-helper % new-height width)) ;; This one is speical 
+    
+    ;; Wait for the agents to finish their jobs so we don't break something
+    (await new-red-vec)
+    (await new-green-vec)
+    (await new-blue-vec)
     
     ;; Return that ulgy sonofabitch 
-    (hash-map :red new-red-vec
-              :green new-green-vec
-              :blue new-blue-vec
+    (hash-map :red (deref new-red-vec)
+              :green (deref new-green-vec)
+              :blue (deref new-blue-vec)
               :height new-height
               :width width)))
 
@@ -191,14 +184,14 @@
   (javax.imageio.ImageIO/write img format (java.io.File. loc)))
 
 (defn test-me
-  []
+  [x y]
   (write-image-to (img-vectors-to-img
                     (resize-height-to 
                       (resize-width-to
                         (image-to-vectors
                           (read-image "C:/Users/natman3400/cirno.png"))
-                        200)
-                      200))
+                        x)
+                      y))
                   "C:/Users/natman3400/test.png"
                   "png"))
 
