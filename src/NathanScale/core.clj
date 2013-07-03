@@ -1,4 +1,5 @@
-(ns NathanScale.core)
+(ns NathanScale.core
+  (:gen-class))
 
 (def PI 3.1415926535897)
 
@@ -201,6 +202,57 @@
                       y))
                   "C:/Users/natman3400/test.png"
                   "png"))
+
+(defn- read-height
+  [curr-height]
+  (print (str "Input new height (default " curr-height "):"))
+  (flush)
+  (let [input (.trim (read-line))]
+    (if (<= (.length input) 0)
+      curr-height
+      (java.lang.Integer/parseInt input))))
+
+(defn- read-width
+  [curr-width]
+  (print (str "Input new width (default " curr-width "):"))
+  (flush)
+  (let [input (.trim (read-line))]
+    (if (<= (.length input) 0)
+      curr-width
+      (java.lang.Integer/parseInt input))))
+
+(defn- read-save-to
+  []
+  (print "Input location to save image to: ")
+  (flush)
+  (let [save-loc (read-line)
+        format   (.substring save-loc (inc (.lastIndexOf save-loc ".")))]
+    (hash-map :location save-loc
+              :format format)))
+
+(defn -main
+  [& args]
+  (if (<= (count args) 0)
+    (do
+      (print "Input location of image to be resized: ")
+      (flush)
+      (let [file-loc   (read-line)
+            orig-img   (read-image file-loc)
+            img-vecs   (image-to-vectors orig-img)
+            new-height (read-height (:height img-vecs))
+            new-width  (read-width (:width img-vecs))]
+        (println "Resizing ...")
+        (let [new-image (img-vectors-to-img
+                          (resize-height-to
+                            (resize-width-to
+                              img-vecs
+                              new-width)
+                            new-height))
+              save-map  (read-save-to)]
+          (write-image-to new-image
+                          (:location save-map)
+                          (:format save-map))
+          (System/exit 0))))))
 
   
 
