@@ -34,7 +34,9 @@
               bottom   (int (max 0 (- (+ (Math/floor x) 1) a)))
               r                              (range bottom top)]
           (reduce +
-                  (map #(* (big-l (- x %)) (nth vec %))
+                  (map (fn 
+                         [^double %]
+                         (* (big-l (- x %)) (nth vec %)))
                        (range bottom top))))))))
 
 (defn resize-to
@@ -79,7 +81,7 @@
 
 (defn image-to-vectors
   "Given an image split it into 3 vectors, one for each channel"
-  [img]
+  [^java.awt.image.BufferedImage img]
   (let [height    (.getHeight img)
         width      (.getWidth img)
         red-vec     (transient [])
@@ -101,9 +103,9 @@
         (conj! red-vec (persistent! red-row))
         (conj! green-vec (persistent! green-row))
         (conj! blue-vec (persistent! blue-row))))
-    (hash-map :red (persistent! red-vec)
-              :green (persistent! green-vec)
-              :blue (persistent! blue-vec)
+    (hash-map :red (vec (map #(into (vector-of :double) %) (persistent! red-vec)))
+              :green (vec (map #(into (vector-of :double) %) (persistent! green-vec)))
+              :blue (vec (map #(into (vector-of :double) %) (persistent! blue-vec)))
               :height height
               :width width)))
 
@@ -114,30 +116,30 @@
         old-green-vec (:green img-vecs)
         old-blue-vec  (:blue img-vecs)
         height        (:height img-vecs)]
-    (hash-map :red (pmap #(resize-to % new-width) old-red-vec)
-              :green (pmap #(resize-to % new-width) old-green-vec)
-              :blue (pmap #(resize-to % new-width) old-blue-vec)
+    (hash-map :red (vec (pmap #(into (vector-of :double) (resize-to % new-width)) old-red-vec))
+              :green (vec (pmap #(into (vector-of :double) (resize-to % new-width)) old-green-vec))
+              :blue (vec (pmap #(into (vector-of :double) (resize-to % new-width)) old-blue-vec))
               :height height
               :width new-width)))
 
 (defn- resize-height-helper
-  [old new-height width]
+  [old ^long new-height ^long width]
   (let [new (transient [])]
     (doseq [y (range 0 new-height)]
       (conj! new (transient [])))
     (doseq [x (range 0 width)]
-      (let [old-col (map #(nth % x) old)
+      (let [old-col (into (vector-of :double) (map #(nth % x) old))
             new-col (resize-to old-col new-height)]
         (doseq [y (range 0 new-height)]
           (conj! (nth new y) (nth new-col y)))))
     (let [persist-new (persistent! new)]
-      (doall (map persistent! persist-new)))))
+      (vec (map persistent! persist-new)))));; Testing the vec
 
 (defn resize-height-to
   "Given a map of channel vectors, create a new map that is the resized image with the given height"
-  [img-vecs new-height]
+  [img-vecs ^long new-height]
   ;; Doing one channel at a time, this is so I can add concurrency later
-  (let [width         (:width img-vecs)
+  (let [width         (int (:width img-vecs))
         old-red       (:red img-vecs)
         new-red-vec   (agent old-red)
         old-green     (:green img-vecs)
@@ -189,7 +191,7 @@
                     (resize-height-to 
                       (resize-width-to
                         (image-to-vectors
-                          (read-image "C:/Users/natman3400/cirno.png"))
+                          (read-image "C:/Users/natman3400/okuu.jpg"))
                         x)
                       y))
                   "C:/Users/natman3400/test.png"
