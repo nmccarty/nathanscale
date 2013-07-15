@@ -3,7 +3,7 @@
 
 (def PI 3.1415926535897)
 
-(def STANDARD-A 3.0)
+(def STANDARD-A 4.0)
 
 (defn peek!
   "A peek that works on transients, because for some reason clojure doesn't give me this"
@@ -25,28 +25,28 @@
   "Constructs an interpolation function for a given vector"
   ([vec]
     (interpolation-function vec STANDARD-A))
-  ([vec ^double a]
-    (let [len (count vec)]
+  ([vector ^double a]
+    (let [len (count vector)]
       (fn [^double x]
         (let [top    (int (min len (inc (+ a (Math/floor x)))))
               bottom   (int (max 0 (- (+ (Math/floor x) 1) a)))
               r                              (range bottom top)]
           (reduce +
                   (map (fn 
-                         [^double %]
-                         (* (big-l (- x %)) (nth vec %)))
+                         [^long %]
+                         (* (big-l (- x %)) (nth vector %)))
                        (range bottom top))))))))
 
 (defn resize-to
   "Make a new vector that is vec resized to newsize"
-  [vec ^long newsize]
-  (let [size              (int (count vec))
-        ratio              (/ newsize size)
-        interp (interpolation-function vec) ;; Build the function used for interpolation
+  [vector ^long newsize]
+  (let [size                    (int (count vector))
+        ratio              (double (/ newsize size))
+        interp (interpolation-function vector) ;; Build the function used for interpolation
         newvec (transient [])]
     (doseq [i (range 0 newsize)]
       (let [oldloc (double (/ i ratio))]
-        (conj! newvec (interp oldloc))))
+        (conj! newvec (int (interp oldloc))))) ;; Testing the int
     (persistent! newvec)))
 
 (defn clamp
@@ -197,7 +197,7 @@
                     (resize-height-to 
                       (resize-width-to
                         (image-to-vectors
-                          (read-image "C:/Users/natman3400/okuu.jpg"))
+                          (read-image "C:/Users/natman3400/cirno.png"))
                         x)
                       y))
                   "C:/Users/natman3400/test.png"
