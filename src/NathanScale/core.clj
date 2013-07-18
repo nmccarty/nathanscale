@@ -1,9 +1,9 @@
 (ns NathanScale.core
   (:gen-class))
 
-(def PI 3.1415926535897)
+(def PI 3.141592653589793)
 
-(def STANDARD-A 4.0)
+(def STANDARD-A 3.0)
 
 (defn peek!
   "A peek that works on transients, because for some reason clojure doesn't give me this"
@@ -25,8 +25,8 @@
   "Constructs an interpolation function for a given vector"
   ([vec]
     (interpolation-function vec STANDARD-A))
-  ([vector ^double a]
-    (let [len (count vector)]
+  ([aseq ^double a]
+    (let [len (count aseq)]
       (fn [^double x]
         (let [top    (int (min len (inc (+ a (Math/floor x)))))
               bottom   (int (max 0 (- (+ (Math/floor x) 1) a)))
@@ -34,20 +34,20 @@
           (reduce +
                   (map (fn 
                          [^long %]
-                         (* (big-l (- x %)) (nth vector %)))
+                         (* (big-l (- x %)) (nth aseq %)))
                        (range bottom top))))))))
 
 (defn resize-to
-  "Make a new vector that is vec resized to newsize"
-  [vector ^long newsize]
-  (let [size                    (int (count vector))
+  "Make a new Array that is aseq resized to newsize"
+  [aseq ^long newsize]
+  (let [size                    (int (count aseq))
         ratio              (double (/ newsize size))
-        interp (interpolation-function vector) ;; Build the function used for interpolation
-        newvec (transient [])]
+        interp (interpolation-function aseq) ;; Build the function used for interpolation
+        newvec (make-array Integer/TYPE newsize)]
     (doseq [i (range 0 newsize)]
       (let [oldloc (double (/ i ratio))]
-        (conj! newvec (int (interp oldloc))))) ;; Testing the int
-    (persistent! newvec)))
+        (aset newvec i (int (interp oldloc))))) ;; Testing the int
+    newvec))
 
 (defn clamp
   "Clamps n to the range defined by lower and upper"
@@ -113,6 +113,32 @@
               :height height
               :width width)))
 
+(defn image-to-arrays
+  "Given an image, split it into 3 2d arrays"
+  [^java.awt.image.BufferedImage img]
+  (let [height                            (.getHeight img)
+        width                              (.getWidth img)
+        red-array   (make-array Integer/TYPE width height)
+        green-array (make-array Integer/TYPE width height)
+        blue-array  (make-array Integer/TYPE width height)]
+    ;; Visit each pixel on the image
+    (doseq [x (range 0 width)
+            y (range 0 height)]
+      (let [pixel (.getRGB img x y) ;; Get the pixel 
+            red   (bit-and pixel 0xFF) ;; Extract red channel
+            green (bit-and (bit-shift-right pixel 8) 0xFF) ;; Extract green channel
+            blue  (bit-and (bit-shift-right pixel 16) 0xFF)] ;; Extract blue channel
+        ;; Put each channel in the correct place in their respective arrays
+        (aset (aget red-array x) y red)
+        (aset (aget green-array x) y green)
+        (aset (aget blue-array x) y blue)))
+    ;; Return a hash-map containing relevant stuff
+    (hash-map :red red-array
+              :green green-array
+              :blue blue-array
+              :height height
+              :width width)))
+
 (defn resize-width-to
   "Given a map of channel vectors, create a new map that is the resized image with the given width"
   [img-vecs ^long new-width]
@@ -120,9 +146,9 @@
         old-green-vec (:green img-vecs)
         old-blue-vec  (:blue img-vecs)
         height        (:height img-vecs)]
-    (hash-map :red (vec (pmap #(into (vector-of :double) (resize-to % new-width)) old-red-vec))
-              :green (vec (pmap #(into (vector-of :double) (resize-to % new-width)) old-green-vec))
-              :blue (vec (pmap #(into (vector-of :double) (resize-to % new-width)) old-blue-vec))
+    (hash-map :red (into-array (doall (pmap #(resize-to % new-width) old-red-vec)))
+              :green (into-array (doall (pmap #(resize-to % new-width) old-green-vec)))
+              :blue (into-array (doall (pmap #(resize-to % new-width) old-blue-vec)))
               :height height
               :width new-width)))
 
@@ -130,16 +156,13 @@
   "This Function exists to make multithreading resize-hight-to eaiser.
    Simply resizes a given field to the given new-height."
   [old ^long new-height ^long width]
-  (let [new (transient [])]
-    (doseq [y (range 0 new-height)]
-      (conj! new (transient [])))
+  (let [new (make-array Integer/TYPE width new-height )]
     (doseq [x (range 0 width)]
-      (let [old-col (into (vector-of :double) (map #(nth % x) old))
+      (let [old-col (into-array Integer/TYPE (map #(nth % x) old))
             new-col (resize-to old-col new-height)]
         (doseq [y (range 0 new-height)]
-          (conj! (nth new y) (nth new-col y)))))
-    (let [persist-new (persistent! new)]
-      (vec (map persistent! persist-new)))));; Testing the vec
+          (aset (aget new x) y (nth new-col y)))
+    new))))
 
 (defn resize-height-to
   "Given a map of channel vectors, create a new map that is the resized image with the given height"
@@ -178,12 +201,13 @@
         red-vec   (:red img-vecs)
         green-vec (:green img-vecs)
         blue-vec  (:blue img-vecs)]
+    (println red-vec)
     (doseq [y (range 0 height)
             x (range 0 width)]
       (let [r     (nth (nth red-vec y) x)
             g     (nth (nth green-vec y) x)
             b     (nth (nth blue-vec y) x)
-            pixel (floats-to-pixel r g b)]
+            pixel (bit-or (bit-and r 0xFF) (bit-shift-left (bit-and g 0xFF) 8) (bit-shift-left (bit-and b 0xFF) 16))]
         (.setRGB img x y pixel)))
     img))
 
@@ -196,7 +220,7 @@
   (write-image-to (img-vectors-to-img
                     (resize-height-to 
                       (resize-width-to
-                        (image-to-vectors
+                        (image-to-arrays
                           (read-image "C:/Users/natman3400/cirno.png"))
                         x)
                       y))
